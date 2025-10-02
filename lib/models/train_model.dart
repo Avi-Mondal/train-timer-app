@@ -1,36 +1,87 @@
 // lib/models/train_model.dart
 
+import 'package:intl/intl.dart'; // We'll need this for date/time formatting
+
 class Train {
   final String trainNumber;
   final String trainName;
-  final String departureTime;
-  final String arrivalTime;
+  final String departureTimeRaw; // Raw string from JSON (e.g., "16:50")
+  final String arrivalTimeRaw;   // Raw string from JSON (e.g., "10:50")
   final String fromStation;
   final String toStation;
-  final String travel_time; // --- THE MISSING PIECE ---
+  final String travelTimeRaw; // Raw string for total travel (e.g., "18:00")
 
   Train({
     required this.trainNumber,
     required this.trainName,
-    required this.departureTime,
-    required this.arrivalTime,
+    required this.departureTimeRaw,
+    required this.arrivalTimeRaw,
     required this.fromStation,
     required this.toStation,
-    required this.travel_time, // --- ADDED HERE ---
+    required this.travelTimeRaw,
   });
 
   factory Train.fromJson(Map<String, dynamic> json) {
-    // We can directly access the fields from the top-level data object now
-    final trainData = json; 
-
     return Train(
-      trainNumber: trainData['train_number'] ?? 'N/A',
-      trainName: trainData['train_name'] ?? 'Unknown Train',
-      departureTime: trainData['from_std'] ?? 'N/A', // Using from_std from JSON
-      arrivalTime: trainData['to_std'] ?? 'N/A',   // Using to_std from JSON
-      fromStation: 'N/A', // JSON does not provide full station names, we'll handle this later
-      toStation: 'N/A',   // JSON does not provide full station names, we'll handle this later
-      travel_time: trainData['travel_time'] ?? 'N/A', // --- AND ADDED HERE ---
+      trainNumber: json['train_number'] ?? 'N/A',
+      trainName: json['train_name'] ?? 'Unknown Train',
+      departureTimeRaw: json['from_std'] ?? 'N/A',
+      arrivalTimeRaw: json['to_std'] ?? 'N/A',
+      fromStation: json['train_src'] ?? 'N/A', // Using train_src if available, else N/A
+      toStation: json['train_dstn'] ?? 'N/A', // Using train_dstn if available, else N/A
+      travelTimeRaw: json['travel_time'] ?? 'N/A',
     );
+  }
+
+  // --- NEW: Helper method to get departure time as DateTime ---
+  DateTime get departureDateTime {
+    // We need a dummy date to combine with the time.
+    // Assuming trains depart/arrive on the current day or the next.
+    final now = DateTime.now();
+    try {
+      final parts = departureTimeRaw.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      DateTime departure = DateTime(now.year, now.month, now.day, hour, minute);
+
+      // If departure time is in the past, assume it's for tomorrow
+      if (departure.isBefore(now)) {
+        departure = departure.add(const Duration(days: 1));
+      }
+      return departure;
+    } catch (e) {
+      print('Error parsing departure time: $e');
+      return now; // Fallback to current time if parsing fails
+    }
+  }
+
+  // --- NEW: Helper method to get arrival time as DateTime ---
+  DateTime get arrivalDateTime {
+    final now = DateTime.now();
+    try {
+      final parts = arrivalTimeRaw.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      DateTime arrival = DateTime(now.year, now.month, now.day, hour, minute);
+
+      // If arrival time is before departure, it must be the next day
+      if (arrival.isBefore(departureDateTime)) {
+        arrival = arrival.add(const Duration(days: 1));
+      }
+      return arrival;
+    } catch (e) {
+      print('Error parsing arrival time: $e');
+      return now; // Fallback
+    }
+  }
+
+  // --- NEW: Helper to get formatted departure time ---
+  String get formattedDepartureTime {
+    return DateFormat('HH:mm').format(departureDateTime);
+  }
+
+  // --- NEW: Helper to get formatted arrival time ---
+  String get formattedArrivalTime {
+    return DateFormat('HH:mm').format(arrivalDateTime);
   }
 }
