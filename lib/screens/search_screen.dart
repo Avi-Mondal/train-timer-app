@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // We need this for rootBundle
+import 'package:train_timer_app/models/train_model.dart'; // Import your new Train model
 import 'package:train_timer_app/screens/timer_screen.dart';
-// We don't need the services import here anymore if the button code is changing
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -8,19 +10,15 @@ class SearchScreen extends StatefulWidget {
   @override
   State<SearchScreen> createState() => _SearchScreenState();
 }
+
 class _SearchScreenState extends State<SearchScreen> {
-  // --- NEW: Step 1 ---
-  // Create the controllers at the top of your state class.
   final _fromController = TextEditingController();
   final _toController = TextEditingController();
 
-  // State variables to hold our data and loading status
   bool _isLoading = false;
-  final List<String> _searchResults = [];
+  // --- MODIFIED: Our list now holds clean Train objects! ---
+  List<Train> _searchResults = [];
 
-  // --- NEW: Step 4 ---
-  // It's a best practice to dispose of controllers when the screen is destroyed
-  // to free up memory.
   @override
   void dispose() {
     _fromController.dispose();
@@ -28,32 +26,39 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
+  // --- MODIFIED: This function now reads from your local file ---
   void _performSearch() async {
-    // --- NEW: Step 3 ---
-    // Access the text from the controllers.
+    // We still use the controllers, but won't need them until we use a real API
     final fromStation = _fromController.text;
     final toStation = _toController.text;
-
-    // A simple print statement to prove that we've captured the text.
     print('Searching for trains from: $fromStation to: $toStation');
 
-    // 1. Clear previous results and show a loading indicator
     setState(() {
       _searchResults.clear();
       _isLoading = true;
     });
 
-    // 2. Simulate a network delay of 2 seconds
-    await Future.delayed(const Duration(seconds: 2));
+    try {
+      // 1. Load the JSON file from assets as a string
+      final String response = await rootBundle.loadString('assets/sample_response.json');
 
-    // 3. Add some fake search results
+      // 2. Decode the JSON string into a Map
+      final data = jsonDecode(response);
+
+      // 3. Get the list of trains from inside the data
+      final List<dynamic> trainList = data['data'];
+
+      // 4. Convert the raw list into a list of clean Train objects
+      setState(() {
+        _searchResults = trainList.map((json) => Train.fromJson(json)).toList();
+      });
+
+    } catch (e) {
+      print('An error occurred: $e');
+    }
+
     setState(() {
       _isLoading = false;
-      _searchResults.addAll([
-        '12345 - Sealdah Duronto',
-        '54321 - Howrah Express',
-        '98765 - Diamond Harbour Local',
-      ]);
     });
   }
 
@@ -68,51 +73,45 @@ class _SearchScreenState extends State<SearchScreen> {
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // --- NEW: Step 2 ---
-            // Attach the controller to the TextField.
             TextField(
               controller: _fromController,
-              decoration: const InputDecoration(
-                hintText: 'Enter From Station',
-              ),
+              decoration: const InputDecoration(hintText: 'Enter From Station'),
             ),
             const SizedBox(height: 16.0),
-            // Attach the other controller to this TextField.
             TextField(
               controller: _toController,
-              decoration: const InputDecoration(
-                hintText: 'Enter To Station',
-              ),
+              decoration: const InputDecoration(hintText: 'Enter To Station'),
             ),
             const SizedBox(height: 24.0),
-
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _performSearch,
-                child: const Text('Search Trains'),
-              ),
+            ElevatedButton(
+              onPressed: _performSearch,
+              child: const Text('Search Trains'),
             ),
             const SizedBox(height: 24.0),
-            
-            // The rest of the file is the same...
             if (_isLoading)
-              const CircularProgressIndicator()
+              const Center(child: CircularProgressIndicator())
             else
               Expanded(
+                // --- MODIFIED: The ListView now displays Train objects ---
                 child: ListView.builder(
                   itemCount: _searchResults.length,
                   itemBuilder: (context, index) {
+                    // 'train' is now a clean Train object
                     final train = _searchResults[index];
+
                     return Card(
+                      color: Theme.of(context).colorScheme.surface,
                       child: ListTile(
-                        title: Text(train),
+                        // We use train.trainName, which is safe and clear
+                        title: Text(train.trainName),
+                        subtitle: Text('Train No: ${train.trainNumber} | Travel Time: ${train.travel_time}'),
                         onTap: () {
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (context) => const TimerScreen()),
+                            MaterialPageRoute(
+                                builder: (context) => TimerScreen(train: train)),
                           );
                         },
                       ),
