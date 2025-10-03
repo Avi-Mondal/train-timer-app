@@ -1,8 +1,8 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:train_timer_app/models/train_model.dart';
-import 'dart:async'; 
+import 'package:train_timer_app/widgets/timer_painter.dart'; // Import our new painter
 
-// We convert this to a StatefulWidget to prepare for the live timer later.
 class TimerScreen extends StatefulWidget {
   final Train train;
   const TimerScreen({super.key, required this.train});
@@ -12,11 +12,11 @@ class TimerScreen extends StatefulWidget {
 }
 
 class _TimerScreenState extends State<TimerScreen> {
-  // --- NEW: State variables to manage the timer ---
   Timer? _timer;
+  Duration _totalTime = Duration.zero;
   Duration _remainingTime = Duration.zero;
+  double _progress = 0.0;
 
-  // --- NEW: A helper function to format Duration into MM:SS ---
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
     final minutes = twoDigits(duration.inMinutes.remainder(60));
@@ -24,44 +24,56 @@ class _TimerScreenState extends State<TimerScreen> {
     return "$minutes:$seconds";
   }
 
-  // --- NEW: This method runs once when the screen is created ---
   @override
   void initState() {
     super.initState();
     _startTimer();
   }
 
-  // --- NEW: This method cleans up the timer when the screen is destroyed ---
   @override
   void dispose() {
-    _timer?.cancel(); // Cancel the timer to prevent memory leaks
+    _timer?.cancel();
     super.dispose();
   }
 
-  // --- NEW: The core logic for our countdown ---
   void _startTimer() {
-    // Calculate the initial remaining time
-    _remainingTime = widget.train.arrivalDateTime.difference(DateTime.now());
+  // Store the final arrival time once. This is our fixed target.
+  final targetTime = widget.train.arrivalDateTime;
 
-    // Create a timer that ticks every second
-    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        // On each tick, decrement the duration by one second
-        final seconds = _remainingTime.inSeconds - 1;
-        if (seconds < 0) {
-          // If the timer is finished, cancel it
-          _timer?.cancel();
-          // Optionally, you can set the text to "Arrived"
-          _remainingTime = Duration.zero;
-        } else {
-          _remainingTime = Duration(seconds: seconds);
-        }
-      });
+  // Calculate the initial total duration for our progress calculation
+  _totalTime = targetTime.difference(DateTime.now());
+  
+  // Handle cases where the train has already arrived or data is invalid
+  if (_totalTime.inSeconds <= 0) {
+    setState(() {
+      _progress = 1.0; // Set progress to full
+      _remainingTime = Duration.zero;
     });
+    return; // Don't start the timer
   }
+
+  // Create a timer that ticks every second
+  _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+    setState(() {
+      // On each tick, RE-CALCULATE the remaining time from the target.
+      _remainingTime = targetTime.difference(DateTime.now());
+
+      if (_remainingTime.inSeconds < 0) {
+        _timer?.cancel();
+        _remainingTime = Duration.zero;
+        _progress = 1.0;
+      } else {
+        // The progress calculation will now work correctly with the real total time
+        _progress = 1.0 - (_remainingTime.inSeconds / _totalTime.inSeconds);
+      }
+    });
+  });
+}
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    //print('BUILD METHOD: Rebuilding with progress $_progress');
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.train.trainName),
@@ -75,12 +87,17 @@ class _TimerScreenState extends State<TimerScreen> {
             Stack(
               alignment: Alignment.center,
               children: [
-                Container(
+                // --- THIS IS THE BIG CHANGE ---
+                // We use our CustomPaint widget here
+                SizedBox(
                   width: 250,
                   height: 250,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Theme.of(context).colorScheme.surface,
+                  child: CustomPaint(
+                    painter: TimerPainter(
+                      progress: _progress,
+                      progressColor: theme.colorScheme.primary, // Use our theme's accent color
+                      backgroundColor: Colors.grey.shade800,
+                    ),
                   ),
                 ),
                 Column(
@@ -90,7 +107,6 @@ class _TimerScreenState extends State<TimerScreen> {
                       style: TextStyle(fontSize: 18, color: Colors.white70),
                     ),
                     const SizedBox(height: 8),
-                    // --- MODIFIED: This now displays our dynamic time ---
                     Text(
                       _formatDuration(_remainingTime),
                       style: const TextStyle(
@@ -104,7 +120,7 @@ class _TimerScreenState extends State<TimerScreen> {
               ],
             ),
             const SizedBox(height: 40),
-            const Text(
+            Text(
               'Platform 4', // Placeholder
               style: TextStyle(
                 fontSize: 28,
