@@ -1,8 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:train_timer_app/models/train_model.dart';
-import 'package:train_timer_app/widgets/timer_painter.dart'; // Import our new painter
+import 'package:train_timer_app/widgets/timer_painter.dart';
 
+// --- THIS IS THE "BLUEPRINT" PART THAT WAS MISSING ---
 class TimerScreen extends StatefulWidget {
   final Train train;
   const TimerScreen({super.key, required this.train});
@@ -11,16 +12,22 @@ class TimerScreen extends StatefulWidget {
   State<TimerScreen> createState() => _TimerScreenState();
 }
 
+// --- THIS IS THE "WORKING MACHINE" PART YOU ALREADY HAVE ---
 class _TimerScreenState extends State<TimerScreen> {
   Timer? _timer;
   Duration _totalTime = Duration.zero;
   Duration _remainingTime = Duration.zero;
   double _progress = 0.0;
+  late Color _arcColor;
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final hours = twoDigits(duration.inHours);
     final minutes = twoDigits(duration.inMinutes.remainder(60));
     final seconds = twoDigits(duration.inSeconds.remainder(60));
+    if (duration.inHours > 0) {
+      return "$hours:$minutes:$seconds";
+    }
     return "$minutes:$seconds";
   }
 
@@ -31,49 +38,55 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _arcColor = Theme.of(context).colorScheme.primary;
+  }
+
+  @override
   void dispose() {
     _timer?.cancel();
     super.dispose();
   }
 
   void _startTimer() {
-  // Store the final arrival time once. This is our fixed target.
-  final targetTime = widget.train.arrivalDateTime;
+    final targetTime = widget.train.arrivalDateTime;
+    _totalTime = targetTime.difference(DateTime.now());
 
-  // Calculate the initial total duration for our progress calculation
-  _totalTime = targetTime.difference(DateTime.now());
-  
-  // Handle cases where the train has already arrived or data is invalid
-  if (_totalTime.inSeconds <= 0) {
-    setState(() {
-      _progress = 1.0; // Set progress to full
-      _remainingTime = Duration.zero;
-    });
-    return; // Don't start the timer
-  }
-
-  // Create a timer that ticks every second
-  _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-    setState(() {
-      // On each tick, RE-CALCULATE the remaining time from the target.
-      _remainingTime = targetTime.difference(DateTime.now());
-
-      if (_remainingTime.inSeconds < 0) {
-        _timer?.cancel();
-        _remainingTime = Duration.zero;
+    if (_totalTime.inSeconds <= 0) {
+      setState(() {
         _progress = 1.0;
-      } else {
-        // The progress calculation will now work correctly with the real total time
-        _progress = 1.0 - (_remainingTime.inSeconds / _totalTime.inSeconds);
-      }
+        _remainingTime = Duration.zero;
+        _arcColor = Colors.green;
+      });
+      return;
+    }
+
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _remainingTime = targetTime.difference(DateTime.now());
+
+        if (_remainingTime.inSeconds < 0) {
+          _timer?.cancel();
+          _remainingTime = Duration.zero;
+          _progress = 1.0;
+          _arcColor = Colors.green;
+        } else {
+          _progress = 1.0 - (_remainingTime.inSeconds / _totalTime.inSeconds);
+          
+          if (_remainingTime.inMinutes < 1) {
+            _arcColor = Colors.red;
+          } else if (_remainingTime.inMinutes < 5) {
+            _arcColor = Colors.orange;
+          }
+        }
+      });
     });
-  });
-}
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    //print('BUILD METHOD: Rebuilding with progress $_progress');
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.train.trainName),
@@ -87,15 +100,13 @@ class _TimerScreenState extends State<TimerScreen> {
             Stack(
               alignment: Alignment.center,
               children: [
-                // --- THIS IS THE BIG CHANGE ---
-                // We use our CustomPaint widget here
                 SizedBox(
                   width: 250,
                   height: 250,
                   child: CustomPaint(
                     painter: TimerPainter(
                       progress: _progress,
-                      progressColor: theme.colorScheme.primary, // Use our theme's accent color
+                      progressColor: _arcColor,
                       backgroundColor: Colors.grey.shade800,
                     ),
                   ),
@@ -120,7 +131,7 @@ class _TimerScreenState extends State<TimerScreen> {
               ],
             ),
             const SizedBox(height: 40),
-            Text(
+            const Text(
               'Platform 4', // Placeholder
               style: TextStyle(
                 fontSize: 28,
