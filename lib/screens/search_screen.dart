@@ -106,8 +106,11 @@ class _SearchScreenState extends State<SearchScreen> {
                       child: ListTile(
                         // We use train.trainName, which is safe and clear
                         title: Text(train.trainName),
-                        // After
-                        subtitle: Text('Train No: ${train.trainNumber} | Travel Time: ${train.travelTimeRaw}'),
+                        // The new, more informative subtitle
+                        subtitle: Text(
+                          'Departs: ${train.formattedDepartureTime}   Arrives: ${train.formattedArrivalTime}\n'
+                          'Train No: ${train.trainNumber}',
+                        ),
                         onTap: () {
                           Navigator.push(
                             context,
