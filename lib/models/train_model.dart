@@ -21,17 +21,20 @@ class Train {
     required this.travelTimeRaw,
   });
 
-  factory Train.fromJson(Map<String, dynamic> json) {
-    return Train(
-      trainNumber: json['train_number'] ?? 'N/A',
-      trainName: json['train_name'] ?? 'Unknown Train',
-      departureTimeRaw: json['from_std'] ?? 'N/A',
-      arrivalTimeRaw: json['to_std'] ?? 'N/A',
-      fromStation: json['train_src'] ?? 'N/A', // Using train_src if available, else N/A
-      toStation: json['train_dstn'] ?? 'N/A', // Using train_dstn if available, else N/A
-      travelTimeRaw: json['travel_time'] ?? 'N/A',
-    );
-  }
+
+
+// Replace your old factory constructor with this one
+factory Train.fromJson(Map<String, dynamic> json) {
+  return Train(
+    trainNumber: json['train_number'] ?? 'N/A',
+    trainName: json['train_name'] ?? 'Unknown Train',
+    departureTimeRaw: json['from_std'] ?? 'N/A', // Use from_std for departure time
+    arrivalTimeRaw: json['to_sta'] ?? 'N/A',   // Use to_sta for arrival time
+    fromStation: json['from_station_name'] ?? 'N/A', // Use the full station name
+    toStation: json['to_station_name'] ?? 'N/A',   // Use the full station name
+    travelTimeRaw: json['duration'] ?? 'N/A',      // Use duration for travel time
+  );
+}
 
   // --- NEW: Helper method to get departure time as DateTime ---
   DateTime get departureDateTime {

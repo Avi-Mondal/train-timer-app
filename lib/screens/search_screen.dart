@@ -1,9 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart'; // We need this for rootBundle
-import 'package:train_timer_app/models/train_model.dart'; // Import your new Train model
+import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart'; // We need this for the date format
+import 'package:train_timer_app/models/train_model.dart';
 import 'package:train_timer_app/screens/timer_screen.dart';
 
+
+// The "Blueprint" part
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -11,12 +15,12 @@ class SearchScreen extends StatefulWidget {
   State<SearchScreen> createState() => _SearchScreenState();
 }
 
+// The "Working Machine" part
 class _SearchScreenState extends State<SearchScreen> {
   final _fromController = TextEditingController();
   final _toController = TextEditingController();
 
   bool _isLoading = false;
-  // --- MODIFIED: Our list now holds clean Train objects! ---
   List<Train> _searchResults = [];
 
   @override
@@ -26,12 +30,17 @@ class _SearchScreenState extends State<SearchScreen> {
     super.dispose();
   }
 
-  // --- MODIFIED: This function now reads from your local file ---
+  // --- THIS IS THE FINAL VERSION OF THE API CALL FUNCTION ---
   void _performSearch() async {
-    // We still use the controllers, but won't need them until we use a real API
+    FocusScope.of(context).unfocus();
+    
     final fromStation = _fromController.text;
     final toStation = _toController.text;
-    print('Searching for trains from: $fromStation to: $toStation');
+
+    if (fromStation.isEmpty || toStation.isEmpty) {
+      print("Error: Station codes cannot be empty.");
+      return;
+    }
 
     setState(() {
       _searchResults.clear();
@@ -39,20 +48,42 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      // 1. Load the JSON file from assets as a string
-      final String response = await rootBundle.loadString('assets/sample_response.json');
+      final uri = Uri.https(
+        'irctc1.p.rapidapi.com', // The correct Host
+        '/api/v3/trainBetweenStations', // The correct Path
+        { // The Query Parameters
+          'fromStationCode': fromStation,
+          'toStationCode': toStation,
+          'dateOfJourney': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+        },
+      );
 
-      // 2. Decode the JSON string into a Map
-      final data = jsonDecode(response);
+      final headers = {
+        'X-RapidAPI-Key': 'e8e6ec17ddmsh8813fae0a7cb1f4p1e4b4bjsn5aa25cbdc42d',
+        'X-RapidAPI-Host': 'irctc1.p.rapidapi.com',
+      };
 
-      // 3. Get the list of trains from inside the data
-      final List<dynamic> trainList = data['data'];
+      final response = await http.get(uri, headers: headers);
 
-      // 4. Convert the raw list into a list of clean Train objects
-      setState(() {
-        _searchResults = trainList.map((json) => Train.fromJson(json)).toList();
-      });
+      // Print everything to the console for debugging
+      print('--- API RESPONSE ---');
+      print('Status Code: ${response.statusCode}');
+      print('Response Body: ${response.body}');
+      print('--------------------');
 
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        
+        // Assuming the list is inside a key called 'data'
+        final List<dynamic> trainList = data['data'];
+
+        setState(() {
+          _searchResults = trainList.map((json) => Train.fromJson(json)).toList();
+        });
+      } else {
+        print('API call failed!');
+      }
     } catch (e) {
       print('An error occurred: $e');
     }
@@ -64,6 +95,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The build method is unchanged
     return Scaffold(
       appBar: AppBar(
         title: const Text('Search Trains'),
@@ -94,19 +126,14 @@ class _SearchScreenState extends State<SearchScreen> {
               const Center(child: CircularProgressIndicator())
             else
               Expanded(
-                // --- MODIFIED: The ListView now displays Train objects ---
                 child: ListView.builder(
                   itemCount: _searchResults.length,
                   itemBuilder: (context, index) {
-                    // 'train' is now a clean Train object
                     final train = _searchResults[index];
-
                     return Card(
                       color: Theme.of(context).colorScheme.surface,
                       child: ListTile(
-                        // We use train.trainName, which is safe and clear
                         title: Text(train.trainName),
-                        // After
                         subtitle: Text('Train No: ${train.trainNumber} | Travel Time: ${train.travelTimeRaw}'),
                         onTap: () {
                           Navigator.push(
