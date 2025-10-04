@@ -56,33 +56,35 @@ class _TimerScreenState extends State<TimerScreen> {
   }
 
   void _startTimer() {
-  // --- TEMPORARY TEST CODE: We force a 30-second countdown ---
-  _totalTime = const Duration(seconds: 30);
-  _remainingTime = const Duration(seconds: 30);
-  // --- END OF TEMPORARY TEST CODE ---
+    final targetTime = widget.train.departureDateTime;
+    _totalTime = targetTime.difference(DateTime.now());
 
-  _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-    setState(() {
-      // For this test, we use the simple "subtract 1 second" logic
-      final seconds = _remainingTime.inSeconds - 1;
+    if (_totalTime.inSeconds <= 0) {
+      setState(() {
+        _status = TimerStatus.finished; // Set status to finished immediately
+      });
+      return;
+    }
 
-      if (seconds < 0) {
-        _timer?.cancel();
-        _status = TimerStatus.finished;
-      } else {
-        _remainingTime = Duration(seconds: seconds);
-        _progress = 1.0 - (_remainingTime.inSeconds / _totalTime.inSeconds);
-        
-        // Use thresholds that work for a 30-second test
-        if (_remainingTime.inSeconds <= 10) {
-          _arcColor = Colors.red;
-        } else if (_remainingTime.inSeconds <= 20) {
-          _arcColor = Colors.orange;
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        _remainingTime = targetTime.difference(DateTime.now());
+
+        if (_remainingTime.inSeconds < 0) {
+          _timer?.cancel();
+          _status = TimerStatus.finished; // --- MODIFIED: Step 3 ---
+        } else {
+          _progress = 1.0 - (_remainingTime.inSeconds / _totalTime.inSeconds);
+          
+          if (_remainingTime.inMinutes < 1) {
+            _arcColor = Colors.red;
+          } else if (_remainingTime.inMinutes < 5) {
+            _arcColor = Colors.orange;
+          }
         }
-      }
+      });
     });
-  });
-}
+  }
   // A helper function to build our timer view
   // Replace your empty _buildTimerView with this one
 
