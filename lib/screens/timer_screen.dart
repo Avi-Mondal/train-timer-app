@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:train_timer_app/models/train_model.dart';
 import 'package:train_timer_app/widgets/timer_painter.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 
 // --- NEW: Step 1 ---
 // Define the possible states for our screen.
@@ -15,16 +16,16 @@ class TimerScreen extends StatefulWidget {
   State<TimerScreen> createState() => _TimerScreenState();
 }
 
-class _TimerScreenState extends State<TimerScreen> {
-  // --- NEW: Step 2 ---
-  // A state variable to remember our current status.
-  TimerStatus _status = TimerStatus.counting;
+class _TimerScreenState extends State<TimerScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
 
   Timer? _timer;
   Duration _totalTime = Duration.zero;
   Duration _remainingTime = Duration.zero;
   double _progress = 0.0;
   late Color _arcColor;
+  TimerStatus _status = TimerStatus.counting;
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -40,6 +41,13 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void initState() {
     super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 800),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    );
     _startTimer();
   }
 
@@ -52,16 +60,19 @@ class _TimerScreenState extends State<TimerScreen> {
   @override
   void dispose() {
     _timer?.cancel();
+    _animationController.dispose();
     super.dispose();
   }
 
   void _startTimer() {
+    //_totalTime = const Duration(seconds: 45);
+    //_remainingTime = _totalTime;
     final targetTime = widget.train.departureDateTime;
     _totalTime = targetTime.difference(DateTime.now());
 
     if (_totalTime.inSeconds <= 0) {
       setState(() {
-        _status = TimerStatus.finished; // Set status to finished immediately
+        _status = TimerStatus.finished;
       });
       return;
     }
@@ -72,86 +83,45 @@ class _TimerScreenState extends State<TimerScreen> {
 
         if (_remainingTime.inSeconds < 0) {
           _timer?.cancel();
-          _status = TimerStatus.finished; // --- MODIFIED: Step 3 ---
+          _status = TimerStatus.finished;
+          _animationController.stop(); // Stop animation when timer finishes
         } else {
           _progress = 1.0 - (_remainingTime.inSeconds / _totalTime.inSeconds);
           
+          Color newColor = Theme.of(context).colorScheme.primary;
           if (_remainingTime.inMinutes < 1) {
-            _arcColor = Colors.red;
+            newColor = Colors.red;
           } else if (_remainingTime.inMinutes < 5) {
-            _arcColor = Colors.orange;
+            newColor = Colors.orange;
+          }
+
+          if (newColor != _arcColor) {
+            HapticFeedback.mediumImpact();
+            _arcColor = newColor;
+          }
+
+          if (_remainingTime.inSeconds <= 30) {
+            if (!_animationController.isAnimating) {
+              _animationController.repeat(reverse: true);
+            }
+          } else {
+            if (_animationController.isAnimating) {
+              _animationController.stop();
+            }
           }
         }
       });
     });
   }
-  // A helper function to build our timer view
-  // Replace your empty _buildTimerView with this one
 
-Widget _buildTimerView() {
-  final theme = Theme.of(context); // We need the theme data here
-  return Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      Stack(
-        alignment: Alignment.center,
-        children: [
-          // The Painter for the circle and arc
-          SizedBox(
-            width: 250,
-            height: 250,
-            child: CustomPaint(
-              painter: TimerPainter(
-                progress: _progress,
-                progressColor: _arcColor,
-                backgroundColor: Colors.grey.shade800,
-              ),
-            ),
-          ),
-          // The Column for the text on top
-          Column(
-            mainAxisSize: MainAxisSize.min, // Important for centering
-            children: [
-              const Text(
-                'Departing In',
-                style: TextStyle(fontSize: 18, color: Colors.white70),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _formatDuration(_remainingTime),
-                style: const TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-      const SizedBox(height: 40),
-      const Text(
-        'Platform 4', // Placeholder
-        style: TextStyle(
-          fontSize: 28,
-          fontWeight: FontWeight.w300,
-          color: Colors.white,
-          letterSpacing: 2,
-        ),
-      ),
-    ],
-  );
-}
-
-  // A helper function to build our "finished" view
   Widget _buildFinishedView() {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(Icons.check_circle, color: Colors.green, size: 150),
+        const Icon(Icons.check_circle, color: Colors.green, size: 150),
         const SizedBox(height: 24),
         const Text(
-          'Train Departed!',
+          'Train Departing!',
           style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         const SizedBox(height: 8),
@@ -162,7 +132,6 @@ Widget _buildTimerView() {
         const SizedBox(height: 40),
         ElevatedButton(
           onPressed: () {
-            // This will close the timer screen and go back
             Navigator.of(context).pop();
           },
           child: const Text('Track Another Train'),
@@ -171,6 +140,62 @@ Widget _buildTimerView() {
     );
   }
 
+  Widget _buildTimerView() {
+    final theme = Theme.of(context);
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        ScaleTransition(
+          scale: _scaleAnimation,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // --- THIS IS THE FULLY CODED PART THAT WAS MISSING ---
+              SizedBox(
+                width: 250,
+                height: 250,
+                child: CustomPaint(
+                  painter: TimerPainter(
+                    progress: _progress,
+                    progressColor: _arcColor,
+                    backgroundColor: Colors.grey.shade800,
+                  ),
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Departing In',
+                    style: TextStyle(fontSize: 18, color: Colors.white70),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _formatDuration(_remainingTime),
+                    style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 40),
+        const Text(
+          'Platform 4',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w300,
+            color: Colors.white,
+            letterSpacing: 2,
+          ),
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -180,12 +205,10 @@ Widget _buildTimerView() {
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
-      // --- MODIFIED: Step 4 ---
-      // The body now shows a different UI based on the _status
       body: Center(
         child: _status == TimerStatus.counting
-            ? _buildTimerView() // If we are counting, show the timer
-            : _buildFinishedView(), // Otherwise, show the finished screen
+            ? _buildTimerView()
+            : _buildFinishedView(),
       ),
     );
   }

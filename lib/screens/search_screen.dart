@@ -28,6 +28,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
   // --- MODIFIED: This function now reads from your local file ---
   void _performSearch() async {
+    
+    FocusScope.of(context).unfocus(); // Dismiss the keyboard
     // We still use the controllers, but won't need them until we use a real API
     final fromStation = _fromController.text;
     final toStation = _toController.text;
@@ -101,25 +103,92 @@ class _SearchScreenState extends State<SearchScreen> {
                     // 'train' is now a clean Train object
                     final train = _searchResults[index];
 
-                    return Card(
-                      color: Theme.of(context).colorScheme.surface,
-                      child: ListTile(
-                        // We use train.trainName, which is safe and clear
-                        title: Text(train.trainName),
-                        // The new, more informative subtitle
-                        subtitle: Text(
-                          'Departs: ${train.formattedDepartureTime}   Arrives: ${train.formattedArrivalTime}\n'
-                          'Train No: ${train.trainNumber}',
+                    // Inside ListView.builder -> itemBuilder...
+
+                    // Replace your old Card with this new one
+                  return Card(
+                   color: Theme.of(context).colorScheme.surface,
+                   child: InkWell( // We use InkWell to make the whole card tappable
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                             builder: (context) => TimerScreen(train: train)),
+                       );
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // The main train name
+                          Text(
+                            train.trainName,
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary, // Use our accent color
+                            ),
+                          ),
+                          const SizedBox(height: 12.0),
+                          // The Row for the details
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              // Column for Departure info
+                              Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  train.fromStation,
+                                  //'Departure',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                                ),
+                                const SizedBox(height: 4.0),
+                                Text(
+                                  train.formattedDepartureTime,
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                                ),
+                              ],
+                            ),
+                            // Column for Arrival info
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  train.toStation,
+                                  //'Arrival',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                                ),
+                                const SizedBox(height: 4.0),
+                                Text(
+                                  train.formattedArrivalTime,
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                                ),
+                              ],
+                            ),
+                            // Column for Train Number info
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Train No.',
+                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                                ),
+                                const SizedBox(height: 4.0),
+                                Text(
+                                  train.trainNumber,
+                                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.white),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => TimerScreen(train: train)),
-                          );
-                        },
-                      ),
-                    );
+                      ],
+                    ),
+                  ),
+                ),
+              );
                   },
                 ),
               ),
